@@ -28,6 +28,7 @@ parser.add_argument("--fs50",     type=int,   default=50,           help="High-r
 parser.add_argument("--fs32",     type=int,   default=32,           help="Low-rate sample rate")
 parser.add_argument("--col50",    default="50_hz",                  help="Column name for 50 Hz signal")
 parser.add_argument("--col32",    default="32_hz",                  help="Column name for 32 Hz signal")
+parser.add_argument("--session",  default="session11",              help="Session identifier shown in report")
 args = parser.parse_args()
 
 # ── Load ──────────────────────────────────────────────────────────────────────
@@ -91,8 +92,8 @@ psd_ymin   = float(psd_db_all.min()) - 3
 psd_ymax   = float(psd_db_all.max()) + 3
 
 # ── Colours ───────────────────────────────────────────────────────────────────
-BLUE  = "#378ADD"
-PINK  = "#D4537E"
+BLUE  = "#2C2C2A"  # dark grey for 32 Hz
+PINK  = "#D4537E"  # pink-red for 50 Hz
 AMBER = "#BA7517"
 GREEN = "#3B6D11"
 GRAY  = "#888780"
@@ -111,16 +112,12 @@ err_mag   = sig_range * 3.0   # error axis half-range (3x signal range)
 # Row 2: col1 = KDE density,  col2 = overlaid PSD comparison
 fig = make_subplots(
     rows=2, cols=2,
-    subplot_titles=(
-        f"Signals & Error (32 Hz shifted {peak_lag*1000:.2f} ms)", "",
-        "Abs Error Density (KDE)", "Power Spectral Density Comparison",
-    ),
     specs=[
         [{"colspan": 2, "secondary_y": True}, None],
         [{"secondary_y": False},              {"secondary_y": False}],
     ],
     row_heights=[0.58, 0.42],
-    vertical_spacing=0.16,
+    vertical_spacing=0.18,
     horizontal_spacing=0.12,
 )
 
@@ -166,15 +163,36 @@ fig.update_yaxes(title_text="Density", row=2, col=1,
 
 # ── Row 2 right: overlaid PSD ─────────────────────────────────────────────────
 fig.add_trace(go.Scatter(x=f32w, y=10*np.log10(p32 + 1e-20), name="PSD 32 Hz",
-                         line=dict(color=BLUE, width=1.5)), row=2, col=2)
+                         line=dict(color=BLUE, width=1.5), showlegend=False), row=2, col=2)
 fig.add_trace(go.Scatter(x=f50w, y=10*np.log10(p50 + 1e-20), name="PSD 50 Hz",
-                         line=dict(color=PINK, width=1.5, dash="dot")), row=2, col=2)
+                         line=dict(color=PINK, width=1.5, dash="dot"), showlegend=False), row=2, col=2)
 fig.update_xaxes(title_text="Frequency (Hz)", range=[0, nyq32], row=2, col=2,
                  showgrid=True, gridcolor=GRID, zeroline=False)
 fig.update_yaxes(title_text="dB", range=[psd_ymin, psd_ymax], row=2, col=2,
                  showgrid=True, gridcolor=GRID, zeroline=False)
 
-# ── Metrics banner — placed in its own annotation band above the plots ────────
+# ── Subplot titles — placed manually to avoid colspan offset bug ──────────────
+# Row 1 spans full width: centre at x=0.5
+# Row 2: col1 centre ~0.225, col2 centre ~0.775 (with 0.12 h-spacing, each col ~0.44 wide)
+title_style = dict(showarrow=False, xref="paper", yref="paper",
+                   xanchor="center", yanchor="bottom",
+                   font=dict(size=13, color="#2c2c2a"))
+
+fig.add_annotation(x=0.5,   y=1.01,
+                   text=f"<b>Signals & Error</b> (32 Hz shifted {peak_lag*1000:.2f} ms)",
+                   **title_style)
+fig.add_annotation(x=0.225, y=0.375,
+                   text="<b>Abs Error Density (KDE)</b>",
+                   **title_style)
+fig.add_annotation(x=0.775, y=0.375,
+                   text="<b>Power Spectral Density Comparison</b>",
+                   **title_style)
+
+# ── Metrics banner ────────────────────────────────────────────────────────────
+details_text = (
+    f"Session: <b>{args.session}</b>    "
+    f"Duration: <b>{dur:.0f} s</b>"
+)
 metrics_text = (
     f"RMSE: <b>{rmse:.4f}</b>    "
     f"MAE: <b>{mae:.4f}</b>    "
@@ -182,10 +200,11 @@ metrics_text = (
     f"R\u00b2: <b>{r2:.5f}</b>    "
     f"XC Lag: <b>{peak_lag*1000:.2f} ms</b>"
 )
+banner_text = details_text + "<br>" + metrics_text
 fig.add_annotation(
     xref="paper", yref="paper",
     x=0.5, y=1.10,
-    text=metrics_text,
+    text=banner_text,
     showarrow=False,
     align="center",
     bgcolor="#E6F1FB",
@@ -196,10 +215,11 @@ fig.add_annotation(
 )
 
 fig.update_layout(
+    width=860,
     height=1000,
     title=dict(
         text="Resampling Accuracy Report \u2014 50 Hz vs 32 Hz",
-        font=dict(size=18),
+        font=dict(size=16),
         y=0.97,
         x=0.5,
         xanchor="center",
@@ -207,14 +227,18 @@ fig.update_layout(
     paper_bgcolor=PAPER, plot_bgcolor=BG,
     showlegend=True,
     legend=dict(orientation="h", yanchor="top", y=-0.08, xanchor="center", x=0.5),
-    font=dict(family="Arial, sans-serif", size=12),
-    margin=dict(t=160, b=100, l=60, r=70),
+    font=dict(family="Arial, sans-serif", size=11),
+    margin=dict(t=155, b=90, l=55, r=65),
 )
 
 # ── Export + inject JS ────────────────────────────────────────────────────────
 html_str = fig.to_html(
     include_plotlyjs="cdn", full_html=True,
     config={"displayModeBar": True, "scrollZoom": True},
+)
+html_str = html_str.replace(
+    "</head>",
+    "<style>body{margin:0;padding:0;} .plotly-graph-div{max-width:100%!important;}</style></head>"
 )
 
 # Double-click on PSD subplot resets x to [0, nyq32].
