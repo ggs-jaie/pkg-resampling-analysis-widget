@@ -218,7 +218,7 @@ fig.update_layout(
     width=860,
     height=1000,
     title=dict(
-        text="Resampling Accuracy Report \u2014 50 Hz vs 32 Hz",
+        text="Resampling Accuracy Report \u2014 50 Hz vs 32 Hz - Half segment mirroring",
         font=dict(size=16),
         y=0.97,
         x=0.5,
