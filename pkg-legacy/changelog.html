@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PKG Metrics: Real-Time Implementation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #F7F8FA;
+      --surface:    #FFFFFF;
+      --border:     #E2E5EA;
+      --text:       #111318;
+      --muted:      #6B7280;
+      --accent:     #1D4ED8;
+      --accent-dim: #EEF2FF;
+      --old-bg:     #FFF5F5;
+      --old-border: #FECACA;
+      --old-label:  #DC2626;
+      --new-bg:     #F0FDF4;
+      --new-border: #BBF7D0;
+      --new-label:  #16A34A;
+      --warn-bg:    #FFFBEB;
+      --warn-border:#FDE68A;
+      --warn-label: #92400E;
+      --mono:       'JetBrains Mono', monospace;
+      --sans:       'Inter', system-ui, sans-serif;
+      --radius:     8px;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      padding: 48px 24px 80px;
+    }
+
+    .page {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ─────────────────────────────────────── */
+    .doc-header {
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 28px;
+      margin-bottom: 40px;
+    }
+
+    .doc-eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .doc-title {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      line-height: 1.25;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+
+    .doc-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .doc-meta span strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    /* ── Section headings ───────────────────────────── */
+    .section { margin-bottom: 44px; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+
+    .section-body {
+      font-size: 14.5px;
+      color: #374151;
+      max-width: 720px;
+    }
+
+    /* ── Change cards ───────────────────────────────── */
+    .change-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .change-card-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: #FAFBFC;
+    }
+
+    .change-number {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .change-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      flex: 1;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-high   { background: #FEE2E2; color: #B91C1C; }
+    .badge-medium { background: #FEF3C7; color: #92400E; }
+    .badge-low    { background: #DCFCE7; color: #15803D; }
+
+    .change-card-body {
+      padding: 0;
+    }
+
+    .diff-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .diff-col {
+      padding: 18px 20px;
+    }
+
+    .diff-col:first-child {
+      border-right: 1px solid var(--border);
+      background: var(--old-bg);
+    }
+
+    .diff-col:last-child {
+      background: var(--new-bg);
+    }
+
+    .diff-col-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .diff-col:first-child .diff-col-label { color: var(--old-label); }
+    .diff-col:last-child  .diff-col-label { color: var(--new-label); }
+
+    .diff-col ul {
+      list-style: none;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .diff-col ul li {
+      font-size: 13.5px;
+      color: #374151;
+      padding-left: 14px;
+      position: relative;
+      line-height: 1.5;
+    }
+
+    .diff-col:first-child ul li::before {
+      content: '·';
+      position: absolute;
+      left: 0;
+      color: #9CA3AF;
+      font-weight: 700;
+      font-size: 18px;
+      line-height: 1.1;
+    }
+
+    .diff-col:last-child ul li::before {
+      content: '+';
+      position: absolute;
+      left: 0;
+      color: var(--new-label);
+      font-weight: 700;
+    }
+
+    .diff-col:first-child ul li.li-neg::before {
+      content: '–';
+      color: var(--old-label);
+      font-size: 14px;
+      font-weight: 700;
+      top: 0;
+    }
+
+    .diff-col:last-child ul li.li-warn::before {
+      content: '⚠';
+      color: #D97706;
+      font-size: 11px;
+      font-weight: 400;
+      top: 2px;
+    }
+
+    .diff-col:last-child ul li.li-warn {
+      color: #78350F;
+    }
+
+    .change-note {
+      padding: 13px 20px;
+      background: var(--warn-bg);
+      border-top: 1px solid var(--warn-border);
+      font-size: 13px;
+      color: var(--warn-label);
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .change-note .note-icon { flex-shrink: 0; margin-top: 1px; }
+
+    /* ── Accuracy table ─────────────────────────────── */
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .metric-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-align: center;
+    }
+
+    .metric-name {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .metric-value {
+      font-family: var(--mono);
+      font-size: 30px;
+      font-weight: 500;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .metric-value.perfect { color: var(--new-label); }
+    .metric-value.warn    { color: #D97706; }
+
+    .metric-note {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .callout {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-left: 4px solid #F59E0B;
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      font-size: 13.5px;
+      color: #78350F;
+      margin-top: 20px;
+      line-height: 1.6;
+    }
+
+    /* ── Footer ─────────────────────────────────────── */
+    .doc-footer {
+      margin-top: 56px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 640px) {
+      .diff-row { grid-template-columns: 1fr; }
+      .diff-col:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+      .results-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Document header ── -->
+  <header class="doc-header">
+    <div class="doc-eyebrow">Technical Documentation</div>
+    <h1 class="doc-title">PKG Metrics<br/>Real-Time Implementation</h1>
+    <div class="doc-meta">
+      <span><strong>Scope:</strong> Bradykinesia · Dyskinesia · Tremor</span>
+    </div>
+  </header>
+
+  <!-- ── Overview ── -->
+  <section class="section">
+    <div class="section-label">Overview</div>
+    <p class="section-body">
+      The consultant's implementation used an offline, batch-processing pipeline.
+      This document describes the key differences introduced in the integrated re-implementation, which operates
+      under real-time constraints with limited resources. Where implementation choices differ, the rationale
+      is provided, as well as accuracy implications observed against the validated Python ground truth.
+    </p>
+  </section>
+
+  <!-- ── Accuracy Results ── -->
+  <section class="section">
+    <div class="section-label">Accuracy Against Python Ground Truth</div>
+    <p class="section-body" style="margin-bottom:0">
+      Three scores are derived from the resampled accG signal. The following results are based on
+      ground truth validation tests.
+    </p>
+
+    <div class="results-grid">
+      <div class="metric-card">
+        <div class="metric-name">Bradykinesia Score</div>
+        <div class="metric-value perfect">0%</div>
+        <div class="metric-note">No error observed against ground truth</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Dyskinesia Score</div>
+        <div class="metric-value warn">&lt;2%</div>
+        <div class="metric-note">Sporadic differences; see note below</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Tremor Score</div>
+        <div class="metric-value perfect">0%</div>
+        <div class="metric-note">No error observed against ground truth</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Dyskinesia sensitivity note:</strong> The dyskinesia score is particularly sensitive to
+      resampling inaccuracies. The very small resampling inaccuracies (Change 1) are amplified in the order
+      of 10<sup>5</sup> by this metric. Thus higher scores come with higher errors, sometimes hitting the error threshold.
+    </div>
+  </section>
+
+  <!-- ── Changes ── -->
+  <section class="section">
+    <div class="section-label">Implementation Changes</div>
+
+    <!-- Change 1 -->
+    <div class="change-card">
+      <div class="change-card-header">
+        <div class="change-number">1</div>
+        <div class="change-title">Resampling Strategy &amp; Filter State</div>
+        <span class="badge badge-high">Highest Impact</span>
+      </div>
+      <div class="change-card-body">
+        <div class="diff-row">
+          <div class="diff-col">
+            <div class="diff-col-label">Consultant Implementation</div>
+            <ul>
+              <li>Processed accG data in 2-minute blocks with 10-second padding on each side; only the central 2 minutes were used for score computation</li>
+              <li>Stateless filter, warmed up on the 10-second padding and reset at the start of every new 2-minute block</li>
+            </ul>
+          </div>
+          <div class="diff-col">
+            <div class="diff-col-label">Integrated Implementation</div>
+            <ul>
+              <li class="li-warn">Processes 1 second of data at a time with 0.5-second padding on each side, requiring 0.5 seconds of future data</li>
+              <li>Stateful filter, state preserved across successive 1-second windows</li>
+            </ul>
+          </div>
+        </div>
+        <div class="change-note">
+          <span class="note-icon">⚠</span>
+          <span>
+            Resampling each second block instead of every 2 minutes introduces
+            a measurable performance overhead. Additionally, resampling results are not identical to the
+            consultant implementation, even though the numerical differences are very small.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Change 2 -->
+    <div class="change-card">
+      <div class="change-card-header">
+        <div class="change-number">2</div>
+        <div class="change-title">Data Type Standardization</div>
+        <span class="badge badge-medium">Precision Trade-off</span>
+      </div>
+      <div class="change-card-body">
+        <div class="diff-row">
+          <div class="diff-col">
+            <div class="diff-col-label">Consultant Implementation</div>
+            <ul>
+              <li>Mixed usage of <code style="font-family:monospace;font-size:12.5px">double</code>, <code style="font-family:monospace;font-size:12.5px">float</code>, and <code style="font-family:monospace;font-size:12.5px">int</code> throughout</li>
+            </ul>
+          </div>
+          <div class="diff-col">
+            <div class="diff-col-label">Integrated Implementation</div>
+            <ul>
+              <li>Standardized to <code style="font-family:monospace;font-size:12.5px">float32_t</code> and <code style="font-family:monospace;font-size:12.5px">stdint</code> types throughout</li>
+              <li class="li-warn"><code style="font-family:monospace;font-size:12.5px">double</code> / <code style="font-family:monospace;font-size:12.5px">float64</code> selectively replaced with <code style="font-family:monospace;font-size:12.5px">float32_t</code></li>
+            </ul>
+          </div>
+        </div>
+        <div class="change-note">
+          <span class="note-icon">⚠</span>
+          <span>
+            Numerically fragile operations (filter pole/zero computation, complex arithmetic) retain full precision.
+            Float32 was used instead in sections where precision was not crucial for the accuracy of the results.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Change 3 -->
+    <div class="change-card">
+      <div class="change-card-header">
+        <div class="change-number">3</div>
+        <div class="change-title">Tremor Detection at Block Boundaries</div>
+        <span class="badge badge-low">Correctness Fix</span>
+      </div>
+      <div class="change-card-body">
+        <div class="diff-row">
+          <div class="diff-col">
+            <div class="diff-col-label">Consultant Implementation</div>
+            <ul>
+              <li class="li-neg">Incorrect number of 5-second subwindows was computed, which caused some tremor streaks to not be detected</li>
+              <li>Required a custom heuristic to handle tremors crossing 2-minute block boundaries</li>
+            </ul>
+          </div>
+          <div class="diff-col">
+            <div class="diff-col-label">Integrated Implementation</div>
+            <ul>
+              <li>Number of considered windows is correct</li>
+              <li>No boundary heuristic required; detection is continuous by design</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Change 4 -->
+    <div class="change-card">
+      <div class="change-card-header">
+        <div class="change-number">4</div>
+        <div class="change-title">Tremor Score — 75th Percentile of Array</div>
+        <span class="badge badge-low">Correctness Fix</span>
+      </div>
+      <div class="change-card-body">
+        <div class="diff-row">
+          <div class="diff-col">
+            <div class="diff-col-label">Consultant Implementation</div>
+            <ul>
+              <li class="li-neg">Missing additional 0 to the array of 1-second power-spectrum peaks before computing the 75th percentile</li>
+            </ul>
+          </div>
+          <div class="diff-col">
+            <div class="diff-col-label">Integrated Implementation</div>
+            <ul>
+              <li>A zero is prepended to the score array before computing the 75th percentile</li>
+              <li>Ensures that a single-element array yields a percentile of 75% of that value, matching Python ground truth behavior</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ── -->
+  <footer class="doc-footer">
+    PKG Metrics: Real-Time Implementation Change Log
+  </footer>
+
+</div>
+</body>
+</html>
