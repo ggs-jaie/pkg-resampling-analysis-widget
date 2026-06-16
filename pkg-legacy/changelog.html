@@ -402,6 +402,7 @@
             <ul>
               <li>Processed accG data in 2-minute blocks with 10-second padding on each side; only the central 2 minutes were used for score computation</li>
               <li>Stateless filter, warmed up on the 10-second padding and reset at the start of every new 2-minute block</li>
+              <li>First 2-minute block was left-padded with zeros</li>
             </ul>
           </div>
           <div class="diff-col">
@@ -409,6 +410,7 @@
             <ul>
               <li class="li-warn">Processes 1 second of data at a time with 0.5-second padding on each side, requiring 0.5 seconds of future data</li>
               <li>Stateful filter, state preserved across successive 1-second windows</li>
+              <li>First second of data is left-padded with a mirrored version of itself</li>
             </ul>
           </div>
         </div>
