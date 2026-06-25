@@ -162,7 +162,7 @@ var DEPS={
   bodyPosition:{obs:["accG","actiFeats","movVar","activity"],bio:[]},
   stepsWrist:{obs:["accG"],bio:["activityClass","locomotionBouts"]},
   stepsAnkle:{obs:["accG","gyroDps"],bio:["activityClass","locomotionBouts","detach"]},
-  locomotionBouts:{obs:["accG"],bio:["activityClass"]},
+  locomotionBouts:{obs:["accG"],bio:["activityClass", "stepsWrist"]},
   quaternions:{obs:["accG","gyroDps","sensorFusion"],bio:[]},
   linearAcc:{obs:["accG","gyroDps","sensorFusion"],bio:[]},
   rest:{obs:["accG","actiFeats","movVar","activity","ir"],bio:["offWristPpg"]},
