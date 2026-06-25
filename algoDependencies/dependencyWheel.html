@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biomarker dependency wheel</title>
+<style>
+:root{
+  --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --color-background-primary:#ffffff;
+  --color-background-secondary:#f5f4ef;
+  --color-text-primary:#1d1c1a;
+  --color-text-secondary:#5f5e5a;
+  --color-text-tertiary:#8b8a84;
+  --color-border-tertiary:rgba(0,0,0,0.12);
+  --border-radius-md:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --color-background-primary:#1f1e1c;
+    --color-background-secondary:#2a2926;
+    --color-text-primary:#ece9e1;
+    --color-text-secondary:#b4b2a9;
+    --color-text-tertiary:#8b8a84;
+    --color-border-tertiary:rgba(255,255,255,0.14);
+  }
+}
+html,body{margin:0;padding:0;background:var(--color-background-primary);color:var(--color-text-primary);font-family:var(--font-sans)}
+.page{max-width:680px;margin:0 auto;padding:24px 16px 40px}
+.page h1{font-size:20px;font-weight:500;margin:0 0 4px}
+.page .sub{font-size:13px;color:var(--color-text-secondary);margin:0 0 16px;line-height:1.5}
+*{box-sizing:border-box}
+.wheel-wrap{position:relative;font-family:var(--font-sans);padding:4px 0 8px}
+.topbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px;font-size:12px;color:var(--color-text-secondary)}
+.ms-label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.clear-btn{font-size:12px;color:var(--color-text-secondary);background:none;border:.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:4px 10px;cursor:pointer}
+.clear-btn:hover{background:var(--color-background-secondary)}
+.seclegend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--color-text-secondary);align-items:center;margin-left:auto}
+.seclegend span{display:flex;align-items:center;gap:4px}
+.secdot{width:9px;height:9px;border-radius:3px}
+.stage{position:relative;width:100%;height:740px;overflow:hidden;touch-action:none}
+.ringguide{position:absolute;border-radius:50%;border:.5px solid var(--color-border-tertiary);pointer-events:none}
+.hub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;width:280px}
+.hub .hint{font-size:13px;color:var(--color-text-tertiary);line-height:1.5}
+.btn{position:absolute;left:0;top:0;display:flex;align-items:center;justify-content:center;min-width:40px;min-height:38px;border-radius:14px;border:.5px solid transparent;white-space:nowrap;cursor:pointer;will-change:transform;font-weight:500;line-height:1;padding:4px 8px}
+.btn .code{font-size:13px}
+.btn .full{font-size:12.5px;display:none}
+.btn.expanded{padding:5px 13px}
+.btn.expanded .code{display:none}
+.btn.expanded .full{display:inline}
+.clone{pointer-events:none;border-radius:14px}
+.seclabel{position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-size:11px;font-weight:500;white-space:nowrap;pointer-events:none;letter-spacing:.02em;opacity:.72}
+.grouplabel{position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--color-text-tertiary);font-weight:500;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .25s}
+.grouplabel.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Biomarker dependency wheel</h1>
+  <p class="sub">Hover near the ring to slow it. Click a node to pin it and clone its dependencies to the centre, grouped as helper observers, biomarker deps, and what needs it.</p>
+<div class="wheel-wrap">
+  <div class="topbar">
+    <label class="ms-label"><input type="checkbox" id="multiToggle"> Multi-select</label>
+    <button class="clear-btn" id="clearBtn">Clear</button>
+    <div class="seclegend" id="seclegend"></div>
+  </div>
+  <div class="stage" id="stage">
+    <div class="ringguide" id="ringguide"></div>
+    <div class="hub" id="hub"><div class="hint">Hover near the ring to slow it. Click a node to pin it and clone its dependencies to the centre.</div></div>
+    <div class="grouplabel" id="lbl-obs">Helper observers</div>
+    <div class="grouplabel" id="lbl-bio">Requires</div>
+    <div class="grouplabel" id="lbl-up">Is required by</div>
+  </div>
+</div>
+</div>
+<script>
+var SECTIONS=[
+  {id:"observer",label:"Observers",faint:"#FAEEDA",faintText:"#854F0B",solid:"#854F0B",solidText:"#FAEEDA",border:"#BA7517"},
+  {id:"vital",label:"Vital signs",faint:"#FAECE7",faintText:"#993C1D",solid:"#993C1D",solidText:"#FAECE7",border:"#D85A30"},
+  {id:"motion",label:"Motion",faint:"#E6F1FB",faintText:"#185FA5",solid:"#185FA5",solidText:"#E6F1FB",border:"#378ADD"},
+  {id:"sleep",label:"Sleep",faint:"#EEEDFE",faintText:"#534AB7",solid:"#534AB7",solidText:"#EEEDFE",border:"#7F77DD"},
+  {id:"wear",label:"Wear",faint:"#E1F5EE",faintText:"#0F6E56",solid:"#0F6E56",solidText:"#E1F5EE",border:"#1D9E75"},
+  {id:"neuro",label:"Neuro",faint:"#FBEAF0",faintText:"#993556",solid:"#993556",solidText:"#FBEAF0",border:"#D4537E"},
+  {id:"sensor",label:"Sensors",faint:"#EAF3DE",faintText:"#3B6D11",solid:"#3B6D11",solidText:"#EAF3DE",border:"#639922"},
+];
+var SECMAP={};SECTIONS.forEach(function(s){SECMAP[s.id]=s;});
+
+var NODES=[
+  {id:"accG",label:"AccG",code:"AcG",group:"observer"},
+  {id:"gyroDps",label:"Gyro DPS",code:"Gyr",group:"observer"},
+  {id:"actiFeats",label:"Acti-features",code:"AcF",group:"observer"},
+  {id:"greenSel",label:"Green sel.",code:"GSl",group:"observer"},
+  {id:"greenPr",label:"Green PR",code:"GPr",group:"observer"},
+  {id:"ir",label:"IR",code:"IR",group:"observer"},
+  {id:"movVar",label:"Motion variance",code:"MVr",group:"observer"},
+  {id:"sysPkQlty",label:"SysPk quality",code:"SPQ",group:"observer"},
+  {id:"intmtBio",label:"Intermittent bio",code:"IBi",group:"observer"},
+  {id:"sensorFusion",label:"Sensor fusion",code:"SFn",group:"observer"},
+  {id:"activity",label:"Activity engine",code:"Act",group:"observer"},
+  {id:"feats",label:"Feature extractor",code:"Fea",group:"observer"},
+  {id:"pkgMetrics",label:"PKG metrics",code:"PKG",group:"observer"},
+  {id:"pulseRate",label:"Pulse rate",code:"PlsR",group:"vital"},
+  {id:"bvp",label:"BVP",code:"BVP",group:"vital"},
+  {id:"spo2",label:"SpO2",code:"SpO",group:"vital"},
+  {id:"respRate",label:"Resp. rate",code:"Resp",group:"vital"},
+  {id:"prv",label:"PRV",code:"PRV",group:"vital"},
+  {id:"sysPk",label:"Systolic peaks",code:"SPk",group:"vital"},
+  {id:"activityClass",label:"Activity class",code:"ACls",group:"motion"},
+  {id:"activityCounts",label:"Activity counts",code:"ACnt",group:"motion"},
+  {id:"actiCounts",label:"Acti-counts",code:"AcCt",group:"motion"},
+  {id:"actigraphyCounts",label:"Actigraphy counts",code:"AgCt",group:"motion"},
+  {id:"stdAcc",label:"Std. acceleration",code:"SAcc",group:"motion"},
+  {id:"mets",label:"METs",code:"MET",group:"motion"},
+  {id:"activityIntensity",label:"Activity intensity",code:"AInt",group:"motion"},
+  {id:"armElevation",label:"Arm elevation",code:"ArmE",group:"motion"},
+  {id:"bodyPosition",label:"Body position",code:"BPos",group:"motion"},
+  {id:"stepsWrist",label:"Steps (wrist)",code:"StpW",group:"motion"},
+  {id:"stepsAnkle",label:"Steps (ankle)",code:"StpA",group:"motion"},
+  {id:"locomotionBouts",label:"Locomotion bouts",code:"Loco",group:"motion"},
+  {id:"quaternions",label:"Quaternions",code:"Quat",group:"motion"},
+  {id:"linearAcc",label:"Linear acc.",code:"LinA",group:"motion"},
+  {id:"rest",label:"Rest",code:"Rest",group:"sleep"},
+  {id:"sleepRecord",label:"Sleep record",code:"Slp",group:"sleep"},
+  {id:"offWristPpg",label:"Off-wrist (PPG)",code:"OWp",group:"wear"},
+  {id:"detach",label:"Off-wrist (no PPG / detach)",code:"Dtch",group:"wear"},
+  {id:"epialgo",label:"Epialgo",code:"Epi",group:"neuro"},
+  {id:"seizureFeats",label:"Seizure forecast",code:"Szr",group:"neuro"},
+  {id:"bks",label:"BKS",code:"BKS",group:"neuro"},
+  {id:"dks",label:"DKS",code:"DKS",group:"neuro"},
+  {id:"tremor",label:"Tremor",code:"Trm",group:"neuro"},
+  {id:"temp",label:"Temperature",code:"Tmp",group:"sensor"},
+  {id:"eda",label:"EDA",code:"EDA",group:"sensor"},
+  {id:"ambientLight",label:"Ambient light",code:"Amb",group:"sensor"},
+];
+var NODEMAP={};NODES.forEach(function(n){NODEMAP[n.id]=n;});
+
+var SIBLINGS={stepsWrist:"stepsAnkle",stepsAnkle:"stepsWrist",offWristPpg:"detach",detach:"offWristPpg"};
+
+var DEPS={
+  accG:{obs:[],bio:[]},gyroDps:{obs:[],bio:[]},actiFeats:{obs:["accG"],bio:[]},
+  greenSel:{obs:[],bio:[]},greenPr:{obs:[],bio:[]},ir:{obs:[],bio:[]},
+  movVar:{obs:["accG","actiFeats"],bio:[]},sysPkQlty:{obs:["greenSel","greenPr"],bio:[]},
+  intmtBio:{obs:[],bio:[]},sensorFusion:{obs:["accG","gyroDps"],bio:[]},
+  activity:{obs:["accG","actiFeats","movVar"],bio:[]},feats:{obs:["greenSel","greenPr"],bio:[]},
+  pkgMetrics:{obs:["accG"],bio:[]},
+  offWristPpg:{obs:["accG","ir"],bio:[]},
+  detach:{obs:["accG","actiFeats","movVar","activity","ir"],bio:["temp"]},
+  pulseRate:{obs:["accG","actiFeats","greenSel","greenPr","movVar","sysPkQlty","feats"],bio:["activityClass"]},
+  bvp:{obs:["greenSel","greenPr"],bio:[]},
+  spo2:{obs:["accG","greenSel","ir"],bio:["activityClass"]},
+  respRate:{obs:["accG","greenSel","greenPr"],bio:["sysPk","activityClass"]},
+  prv:{obs:["accG","actiFeats","greenSel","greenPr","movVar","sysPkQlty"],bio:["sysPk","activityClass"]},
+  sysPk:{obs:["accG","actiFeats","greenSel","greenPr","movVar","sysPkQlty"],bio:["activityClass"]},
+  activityClass:{obs:["accG"],bio:[]},
+  activityCounts:{obs:["accG","actiFeats","movVar","activity"],bio:[]},
+  actiCounts:{obs:["accG"],bio:[]},
+  actigraphyCounts:{obs:["accG"],bio:[]},
+  stdAcc:{obs:["accG","actiFeats","movVar","activity"],bio:[]},
+  mets:{obs:["accG","actiFeats","movVar","activity"],bio:["actigraphyCounts"]},
+  activityIntensity:{obs:["accG","actiFeats","movVar","activity"],bio:["mets"]},
+  armElevation:{obs:["accG","actiFeats","movVar","activity"],bio:[]},
+  bodyPosition:{obs:["accG","actiFeats","movVar","activity"],bio:[]},
+  stepsWrist:{obs:["accG"],bio:["activityClass","locomotionBouts"]},
+  stepsAnkle:{obs:["accG","gyroDps"],bio:["activityClass","locomotionBouts","detach"]},
+  locomotionBouts:{obs:["accG"],bio:["activityClass"]},
+  quaternions:{obs:["accG","gyroDps","sensorFusion"],bio:[]},
+  linearAcc:{obs:["accG","gyroDps","sensorFusion"],bio:[]},
+  rest:{obs:["accG","actiFeats","movVar","activity","ir"],bio:["offWristPpg"]},
+  sleepRecord:{obs:["accG","actiFeats","movVar","activity","ir"],bio:["rest","offWristPpg"]},
+  temp:{obs:[],bio:[]},eda:{obs:[],bio:[]},ambientLight:{obs:[],bio:[]},
+  epialgo:{obs:["accG"],bio:[]},
+  seizureFeats:{obs:["accG","actiFeats","greenSel","greenPr","movVar","feats"],bio:["eda"]},
+  bks:{obs:["accG","pkgMetrics"],bio:[]},dks:{obs:["accG","pkgMetrics"],bio:[]},tremor:{obs:["accG","pkgMetrics"],bio:[]},
+};
+
+function collectTransitive(ids){
+  var allBio=new Set(),allObs=new Set(),queue=ids.slice(),visited=new Set(ids);
+  while(queue.length){
+    var id=queue.shift(),d=DEPS[id];if(!d)continue;
+    (d.obs||[]).forEach(function(o){allObs.add(o);});
+    (d.bio||[]).forEach(function(b){allBio.add(b);if(!visited.has(b)){visited.add(b);queue.push(b);}});
+  }
+  return {allBio:allBio,allObs:allObs};
+}
+function buildReverseMap(){
+  var rev={};NODES.forEach(function(n){rev[n.id]=[];});
+  NODES.forEach(function(n){var d=DEPS[n.id];if(!d)return;
+    (d.bio||[]).concat(d.obs||[]).forEach(function(dep){if(rev[dep]&&rev[dep].indexOf(n.id)===-1)rev[dep].push(n.id);});});
+  return rev;
+}
+var reverseMap=buildReverseMap();
+
+var stage=document.getElementById("stage");
+var ringguide=document.getElementById("ringguide");
+var hub=document.getElementById("hub");
+var lblObs=document.getElementById("lbl-obs"),lblBio=document.getElementById("lbl-bio"),lblUp=document.getElementById("lbl-up");
+
+var W=680,H=740,CX=340,CY=362,R=292,SECR=R+30;
+var BASE_SPEED=2*Math.PI/82000;
+var GROUP_ORDER=["observer","vital","motion","sleep","wear","neuro","sensor"];
+
+var selected=new Set(), multiMode=false;
+var angle=0, speed=0, pointer={x:-999,y:-999,inside:false};
+var centerTargets={}, lastNow=0, st={}, clones=[], secLabels=[], secMid={};
+
+function estWidth(label,fs){return Math.ceil(label.length*(fs*0.58))+26;}
+
+function buildLegend(){
+  var el=document.getElementById("seclegend");
+  SECTIONS.forEach(function(s){
+    var sp=document.createElement("span");
+    sp.innerHTML="<span class='secdot' style='background:"+s.border+"'></span>"+s.label;
+    el.appendChild(sp);
+  });
+}
+
+function buildWheel(){
+  ringguide.style.width=(2*R)+"px";ringguide.style.height=(2*R)+"px";
+  ringguide.style.left=(CX-R)+"px";ringguide.style.top=(CY-R)+"px";
+
+  var ordered=[];
+  GROUP_ORDER.forEach(function(g){NODES.forEach(function(n){if(n.group===g)ordered.push(n);});});
+  var N=ordered.length, gaps=GROUP_ORDER.length, gapUnit=1.25;
+  var totalUnits=N+gaps*gapUnit, step=2*Math.PI/totalUnits;
+  var cur=-Math.PI/2, prevGroup=null, secArc={};
+  ordered.forEach(function(n){
+    if(prevGroup!==null&&n.group!==prevGroup)cur+=step*gapUnit;
+    prevGroup=n.group;
+    if(!secArc[n.group])secArc[n.group]={min:cur,max:cur};else secArc[n.group].max=cur;
+    var sec=SECMAP[n.group];
+    var el=document.createElement("div");
+    el.className="btn";el.id="btn-"+n.id;
+    el.style.background=sec.faint;el.style.color=sec.faintText;el.style.borderColor=sec.border;
+    el.innerHTML="<span class='code'>"+n.code+"</span><span class='full'>"+n.label+"</span>";
+    el.addEventListener("click",function(ev){ev.stopPropagation();toggleNode(n.id);});
+    stage.appendChild(el);
+    st[n.id]={el:el,baseAngle:cur,x:CX,y:CY,scale:1,group:n.group,sec:sec};
+    cur+=step;
+  });
+  GROUP_ORDER.forEach(function(g){
+    var a=secArc[g];secMid[g]=(a.min+a.max)/2;
+    var sec=SECMAP[g];
+    var l=document.createElement("div");
+    l.className="seclabel";l.textContent=sec.label;l.style.color=sec.border;
+    stage.appendChild(l);secLabels.push({el:l,group:g});
+  });
+}
+
+function toggleNode(id){
+  if(!multiMode){ if(selected.has(id))selected.clear(); else{selected.clear();selected.add(id);} }
+  else{ if(selected.has(id))selected.delete(id); else selected.add(id); }
+  computeSelection();
+}
+
+function packGroup(ids,maxW,fs){
+  var rows=[],row=[],rw=0,gap=8;
+  ids.forEach(function(id){
+    var w=estWidth(NODEMAP[id].label,fs);
+    if(row.length&&rw+gap+w>maxW){rows.push({items:row,width:rw});row=[];rw=0;}
+    row.push({id:id,w:w});rw+=(row.length>1?gap:0)+w;
+  });
+  if(row.length)rows.push({items:row,width:rw});
+  return rows;
+}
+
+function makeClone(id,tx,ty,sx,sy){
+  var n=NODEMAP[id],sec=SECMAP[n.group];
+  var el=document.createElement("div");
+  el.className="btn clone expanded";
+  el.style.background=sec.solid;el.style.color=sec.solidText;el.style.borderColor=sec.solid;
+  el.innerHTML="<span class='full' style='display:inline'>"+n.label+"</span>";
+  stage.appendChild(el);
+  clones.push({el:el,x:sx,y:sy,tx:tx,ty:ty,scale:0.65});
+}
+
+function computeSelection(){
+  centerTargets={};
+  clones.forEach(function(c){c.el.remove();});clones=[];
+  var active=selected.size>0;
+  hub.style.opacity=active?"0":"1";
+  [lblObs,lblBio,lblUp].forEach(function(l){l.classList.remove("show");});
+  if(!active)return;
+
+  var arr=Array.from(selected);
+  var tr=collectTransitive(arr);
+  var obsArr=Array.from(tr.allObs).filter(function(id){return !selected.has(id);});
+  var bioArr=Array.from(tr.allBio).filter(function(id){return !selected.has(id);});
+  var upSet=new Set();
+  arr.forEach(function(id){(reverseMap[id]||[]).forEach(function(u){if(!selected.has(u))upSet.add(u);});});
+  var upArr=Array.from(upSet).filter(function(id){return obsArr.indexOf(id)===-1&&bioArr.indexOf(id)===-1;});
+
+  var fs=12,maxW=470,rowH=32,labelH=20,groupGap=16;
+  var groups=[
+    {ids:obsArr,lbl:lblObs},{ids:bioArr,lbl:lblBio},{ids:upArr,lbl:lblUp},
+  ];
+  var totalH=0;
+  groups.forEach(function(g){
+    if(!g.ids.length){g.rows=[];g.h=0;return;}
+    g.rows=packGroup(g.ids,maxW,fs);g.h=labelH+g.rows.length*rowH;totalH+=g.h+groupGap;
+  });
+  if(totalH>0)totalH-=groupGap;
+  var y=CY-totalH/2;
+
+  groups.forEach(function(g){
+    if(!g.ids.length)return;
+    g.lbl.style.left=CX+"px";g.lbl.style.top=(y+labelH/2)+"px";g.lbl.classList.add("show");
+    var ry=y+labelH;
+    g.rows.forEach(function(row){
+      var sx=CX-row.width/2,ax=sx;
+      row.items.forEach(function(it){
+        var tx=ax+it.w/2,ty=ry+rowH/2;
+        centerTargets[it.id]={x:tx,y:ty};
+        var src=st[it.id];
+        makeClone(it.id,tx,ty,src.x,src.y);
+        ax+=it.w+8;
+      });
+      ry+=rowH;
+    });
+    y+=g.h+groupGap;
+  });
+}
+
+function shortestAngle(a){a=a%(2*Math.PI);if(a>Math.PI)a-=2*Math.PI;if(a<-Math.PI)a+=2*Math.PI;return a;}
+
+function tick(now){
+  if(!lastNow)lastNow=now;
+  var dt=Math.min(now-lastNow,50);lastNow=now;
+  var active=selected.size>0;
+
+  var pAng=null,pR=null;
+  if(pointer.inside){
+    var dx=pointer.x-CX,dy=pointer.y-CY;
+    pR=Math.sqrt(dx*dx+dy*dy);pAng=Math.atan2(dy,dx);
+  }
+  var nearRing=(pR!==null&&pR>R-52&&pR<R+44);
+
+  var nearestId=null,nearestD=999;
+  if(nearRing){
+    NODES.forEach(function(n){
+      var s=st[n.id];var d=Math.abs(shortestAngle(s.baseAngle+angle-pAng));
+      if(d<nearestD){nearestD=d;nearestId=n.id;}
+    });
+    if(nearestD>0.13)nearestId=null;
+  }
+
+  var shouldStop=active||nearRing;
+  var tgt=shouldStop?0:BASE_SPEED;
+  speed+=(tgt-speed)*0.05;
+  angle+=speed*dt;
+
+  NODES.forEach(function(n){
+    var s=st[n.id],el=s.el;
+    var a=s.baseAngle+angle;
+    var tx=CX+R*Math.cos(a),ty=CY+R*Math.sin(a);
+    var isSel=selected.has(n.id);
+    var tscale,expanded,solid;
+    if(isSel){tscale=1.16;expanded=true;solid=true;}
+    else{
+      solid=false;
+      var mag=1;
+      if(nearRing){var d=Math.abs(shortestAngle(a-pAng));mag=1+0.42*Math.exp(-(d*d)/(2*0.30*0.30));}
+      tscale=mag;expanded=(n.id===nearestId);
+    }
+    s.x+=(tx-s.x)*0.20;s.y+=(ty-s.y)*0.20;s.scale+=(tscale-s.scale)*0.22;
+
+    if(expanded){if(!el.classList.contains("expanded"))el.classList.add("expanded");}
+    else{if(el.classList.contains("expanded"))el.classList.remove("expanded");}
+
+    if(solid){if(el.style.background!==s.sec.solid){el.style.background=s.sec.solid;el.style.color=s.sec.solidText;el.style.borderColor=s.sec.solid;}}
+    else{if(el.style.background!==s.sec.faint){el.style.background=s.sec.faint;el.style.color=s.sec.faintText;el.style.borderColor=s.sec.border;}}
+
+    var sib=false;
+    if(selected.size===1&&!multiMode){var sid=Array.from(selected)[0];if(SIBLINGS[sid]===n.id)sib=true;}
+    el.style.boxShadow=sib?("0 0 0 2px "+s.sec.border):"none";
+
+    el.style.transform="translate("+s.x+"px,"+s.y+"px) translate(-50%,-50%) scale("+s.scale.toFixed(3)+")";
+    el.style.zIndex=String(Math.round(s.scale*100)+(isSel?400:0));
+  });
+
+  secLabels.forEach(function(sl){
+    var a=secMid[sl.group]+angle;
+    var lx=CX+SECR*Math.cos(a),ly=CY+SECR*Math.sin(a);
+    sl.el.style.transform="translate("+lx+"px,"+ly+"px) translate(-50%,-50%)";
+  });
+
+  clones.forEach(function(c){
+    c.x+=(c.tx-c.x)*0.16;c.y+=(c.ty-c.y)*0.16;c.scale+=(1-c.scale)*0.16;
+    c.el.style.transform="translate("+c.x+"px,"+c.y+"px) translate(-50%,-50%) scale("+c.scale.toFixed(3)+")";
+    c.el.style.zIndex="600";
+  });
+
+  requestAnimationFrame(tick);
+}
+
+stage.addEventListener("pointerenter",function(){pointer.inside=true;});
+stage.addEventListener("pointerleave",function(){pointer.inside=false;pointer.x=-999;pointer.y=-999;});
+stage.addEventListener("pointermove",function(e){
+  var r=stage.getBoundingClientRect();
+  pointer.x=(e.clientX-r.left)*(W/r.width);
+  pointer.y=(e.clientY-r.top)*(H/r.height);
+  pointer.inside=true;
+});
+
+document.getElementById("multiToggle").addEventListener("change",function(){
+  multiMode=this.checked;
+  if(!multiMode&&selected.size>1){var last=Array.from(selected).pop();selected.clear();selected.add(last);}
+  computeSelection();
+});
+document.getElementById("clearBtn").addEventListener("click",function(){selected.clear();computeSelection();});
+
+buildLegend();
+buildWheel();
+NODES.forEach(function(n){var s=st[n.id];var a=s.baseAngle;s.x=CX+R*Math.cos(a);s.y=CY+R*Math.sin(a);});
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
