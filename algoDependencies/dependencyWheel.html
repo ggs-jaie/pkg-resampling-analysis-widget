@@ -49,7 +49,8 @@ html,body{margin:0;padding:0;background:var(--color-background-primary);color:va
 .btn.expanded .code{display:none}
 .btn.expanded .full{display:inline}
 .clone{pointer-events:none;border-radius:14px}
-.seclabel{position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-size:11px;font-weight:700;white-space:nowrap;pointer-events:none;letter-spacing:.02em;opacity:.72}
+.seclabel{position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-size:11px;font-weight:700;white-space:nowrap;pointer-events:none;letter-spacing:.02em;opacity:.72;transition:opacity .25s}
+.seclabel.hidden{opacity:0!important}
 .grouplabel{position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--color-text-tertiary);font-weight:500;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .25s}
 .grouplabel.show{opacity:1}
 </style>
@@ -75,11 +76,11 @@ html,body{margin:0;padding:0;background:var(--color-background-primary);color:va
 </div>
 <script>
 var SECTIONS=[
-  {id:"observer",label:"OBSERVERS",faint:"#FAEEDA",faintText:"#854F0B",solid:"#854F0B",solidText:"#FAEEDA",border:"#BA7517"},
+  {id:"observer",label:"OBSV",faint:"#FAEEDA",faintText:"#854F0B",solid:"#854F0B",solidText:"#FAEEDA",border:"#BA7517"},
   {id:"vital",label:"VITALS",faint:"#FAECE7",faintText:"#993C1D",solid:"#993C1D",solidText:"#FAECE7",border:"#D85A30"},
   {id:"motion",label:"MOTION",faint:"#E6F1FB",faintText:"#185FA5",solid:"#185FA5",solidText:"#E6F1FB",border:"#378ADD"},
   {id:"sleep",label:"SLEEP",faint:"#EEEDFE",faintText:"#534AB7",solid:"#534AB7",solidText:"#EEEDFE",border:"#7F77DD"},
-  {id:"wear",label:"WEAR DETECTION",faint:"#E1F5EE",faintText:"#0F6E56",solid:"#0F6E56",solidText:"#E1F5EE",border:"#1D9E75"},
+  {id:"wear",label:"WEAR",faint:"#E1F5EE",faintText:"#0F6E56",solid:"#0F6E56",solidText:"#E1F5EE",border:"#1D9E75"},
   {id:"neuro",label:"NEURO",faint:"#FBEAF0",faintText:"#993556",solid:"#993556",solidText:"#FBEAF0",border:"#D4537E"},
   {id:"sensor",label:"OTHERS",faint:"#EAF3DE",faintText:"#3B6D11",solid:"#3B6D11",solidText:"#EAF3DE",border:"#639922"},
 ];
@@ -162,7 +163,7 @@ var DEPS={
   bodyPosition:{obs:["accG","actiFeats","movVar","activity"],bio:[]},
   stepsWrist:{obs:["accG"],bio:["activityClass","locomotionBouts"]},
   stepsAnkle:{obs:["accG","gyroDps"],bio:["activityClass","locomotionBouts","detach"]},
-  locomotionBouts:{obs:["accG"],bio:["activityClass", "stepsWrist"]},
+  locomotionBouts:{obs:["accG"],bio:["activityClass","stepsWrist"]},
   quaternions:{obs:["accG","gyroDps","sensorFusion"],bio:[]},
   linearAcc:{obs:["accG","gyroDps","sensorFusion"],bio:[]},
   rest:{obs:["accG","actiFeats","movVar","activity","ir"],bio:["offWristPpg"]},
@@ -195,7 +196,7 @@ var ringguide=document.getElementById("ringguide");
 var hub=document.getElementById("hub");
 var lblObs=document.getElementById("lbl-obs"),lblBio=document.getElementById("lbl-bio"),lblUp=document.getElementById("lbl-up");
 
-var W=680,H=740,CX=340,CY=362,R=280,SECR=R-50;
+var W=680,H=740,CX=340,CY=362,R=280,SECR=R-100;
 var BASE_SPEED=2*Math.PI/60000;
 var GROUP_ORDER=["observer","vital","motion","sleep","wear","neuro","sensor"];
 
@@ -270,7 +271,7 @@ function makeClone(id,tx,ty,sx,sy){
   el.style.background=sec.solid;el.style.color=sec.solidText;el.style.borderColor=sec.solid;
   el.innerHTML="<span class='full' style='display:inline'>"+n.label+"</span>";
   stage.appendChild(el);
-  clones.push({el:el,x:sx,y:sy,tx:tx,ty:ty,scale:0.65});
+  clones.push({el:el,x:sx,y:sy,tx:tx,ty:ty,scale:0.45});
 }
 
 function computeSelection(){
@@ -279,6 +280,12 @@ function computeSelection(){
   var active=selected.size>0;
   hub.style.opacity=active?"0":"1";
   [lblObs,lblBio,lblUp].forEach(function(l){l.classList.remove("show");});
+
+  secLabels.forEach(function(sl){
+    if(active) sl.el.classList.add("hidden");
+    else sl.el.classList.remove("hidden");
+  });
+
   if(!active)return;
 
   var arr=Array.from(selected);
@@ -289,7 +296,7 @@ function computeSelection(){
   arr.forEach(function(id){(reverseMap[id]||[]).forEach(function(u){if(!selected.has(u))upSet.add(u);});});
   var upArr=Array.from(upSet).filter(function(id){return obsArr.indexOf(id)===-1&&bioArr.indexOf(id)===-1;});
 
-  var fs=12,maxW=470,rowH=32,labelH=20,groupGap=16;
+  var fs=12,maxW=470,rowH=42,labelH=20,groupGap=22;
   var groups=[
     {ids:obsArr,lbl:lblObs},{ids:bioArr,lbl:lblBio},{ids:upArr,lbl:lblUp},
   ];
@@ -380,11 +387,12 @@ function tick(now){
   secLabels.forEach(function(sl){
     var a=secMid[sl.group]+angle;
     var lx=CX+SECR*Math.cos(a),ly=CY+SECR*Math.sin(a);
-    sl.el.style.transform="translate("+lx+"px,"+ly+"px) translate(-50%,-50%)";
+    sl.el.style.left=lx+"px";sl.el.style.top=ly+"px";
+    sl.el.style.transform="translate(-50%,-50%)";
   });
 
   clones.forEach(function(c){
-    c.x+=(c.tx-c.x)*0.16;c.y+=(c.ty-c.y)*0.16;c.scale+=(1-c.scale)*0.16;
+    c.x+=(c.tx-c.x)*0.16;c.y+=(c.ty-c.y)*0.16;c.scale+=(0.72-c.scale)*0.16;
     c.el.style.transform="translate("+c.x+"px,"+c.y+"px) translate(-50%,-50%) scale("+c.scale.toFixed(3)+")";
     c.el.style.zIndex="600";
   });
