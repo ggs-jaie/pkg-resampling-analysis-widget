@@ -254,7 +254,7 @@ function toggleNode(id){
 }
 
 function packGroup(ids,maxW,fs){
-  var rows=[],row=[],rw=0,gap=8;
+  var rows=[],row=[],rw=0,gap=4;
   ids.forEach(function(id){
     var w=estWidth(NODEMAP[id].label,fs);
     if(row.length&&rw+gap+w>maxW){rows.push({items:row,width:rw});row=[];rw=0;}
@@ -271,7 +271,7 @@ function makeClone(id,tx,ty,sx,sy){
   el.style.background=sec.solid;el.style.color=sec.solidText;el.style.borderColor=sec.solid;
   el.innerHTML="<span class='full' style='display:inline'>"+n.label+"</span>";
   stage.appendChild(el);
-  clones.push({el:el,x:sx,y:sy,tx:tx,ty:ty,scale:0.45});
+  clones.push({el:el,x:sx,y:sy,tx:tx,ty:ty,scale:0.55});
 }
 
 function computeSelection(){
