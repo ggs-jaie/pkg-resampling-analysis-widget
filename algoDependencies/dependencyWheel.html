@@ -220,7 +220,7 @@ function buildWheel(){
 
   var ordered=[];
   GROUP_ORDER.forEach(function(g){NODES.forEach(function(n){if(n.group===g)ordered.push(n);});});
-  var N=ordered.length, gaps=GROUP_ORDER.length, gapUnit=1.25;
+  var N=ordered.length, gaps=GROUP_ORDER.length, gapUnit=0.0;
   var totalUnits=N+gaps*gapUnit, step=2*Math.PI/totalUnits;
   var cur=-Math.PI/2, prevGroup=null, secArc={};
   ordered.forEach(function(n){
