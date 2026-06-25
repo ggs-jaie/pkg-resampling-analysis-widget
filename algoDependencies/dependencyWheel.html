@@ -204,7 +204,7 @@ var selected=new Set(), multiMode=false;
 var angle=0, speed=0, pointer={x:-999,y:-999,inside:false};
 var centerTargets={}, lastNow=0, st={}, clones=[], secLabels=[], secMid={};
 
-function estWidth(label,fs){return Math.ceil(label.length*(fs*0.58))+26;}
+function estWidth(label,fs){return Math.ceil(label.length*(fs*0.7))+26;}
 
 function buildLegend(){
   var el=document.getElementById("seclegend");
