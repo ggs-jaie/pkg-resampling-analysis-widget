@@ -358,7 +358,7 @@ function tick(now){
     else{
       solid=false;
       var mag=1;
-      if(nearRing){var d=Math.abs(shortestAngle(a-pAng));mag=1+0.2*Math.exp(-(d*d)/(2*0.30*0.30));}
+      if(nearRing){var d=Math.abs(shortestAngle(a-pAng));mag=1+0.1*Math.exp(-(d*d)/(2*0.30*0.30));}
       tscale=mag;expanded=(n.id===nearestId);
     }
     s.x+=(tx-s.x)*0.20;s.y+=(ty-s.y)*0.20;s.scale+=(tscale-s.scale)*0.22;
